@@ -1,0 +1,1371 @@
+<!-- File: legal-finder.html -->
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>法務系ページ自動検出ツール</title>
+
+  <style>
+    /*
+      このHTMLは、1ファイルだけで動くMVPです。
+      サーバーを用意せず、ブラウザだけで動かすために、
+      外部サイトのHTML取得には AllOrigins という公開プロキシを利用します。
+
+      注意:
+      - 公開プロキシは常に安定しているとは限りません。
+      - 対象サイト側がbot対策をしている場合、取得に失敗することがあります。
+      - その場合は「HTMLソース貼り付け」で解析できます。
+    */
+
+    :root {
+      --bg: #f7f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --danger: #dc2626;
+      --warning-bg: #fff7ed;
+      --warning-line: #fed7aa;
+      --warning-text: #9a3412;
+      --success-bg: #ecfdf5;
+      --success-line: #a7f3d0;
+      --success-text: #047857;
+      --radius: 16px;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, #dbeafe 0, transparent 32%),
+        var(--bg);
+    }
+
+    main {
+      width: min(920px, 100%);
+      margin: 0 auto;
+    }
+
+    .app {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 28px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(24px, 4vw, 36px);
+      line-height: 1.25;
+      letter-spacing: -0.03em;
+    }
+
+    .description {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    .content {
+      padding: 28px;
+    }
+
+    .form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    input[type="url"] {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      outline: none;
+      transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+    }
+
+    input[type="url"]:focus,
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      background: var(--primary);
+      cursor: pointer;
+      transition:
+        background 0.15s ease,
+        transform 0.15s ease;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background: var(--primary-dark);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .sub-button {
+      color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .sub-button:hover {
+      color: #ffffff;
+      background: var(--primary);
+    }
+
+    .status {
+      margin-top: 20px;
+      min-height: 28px;
+    }
+
+    .loading {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .loading.is-visible {
+      display: flex;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid #dbeafe;
+      border-top-color: var(--primary);
+      border-radius: 999px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .message {
+      display: none;
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      line-height: 1.7;
+    }
+
+    .message.is-visible {
+      display: block;
+    }
+
+    .message.warning {
+      color: var(--warning-text);
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-line);
+    }
+
+    .message.success {
+      color: var(--success-text);
+      background: var(--success-bg);
+      border: 1px solid var(--success-line);
+    }
+
+    .message.error {
+      color: var(--danger);
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+    }
+
+    .results {
+      margin-top: 24px;
+    }
+
+    .results-header {
+      display: none;
+      margin-bottom: 12px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .results-header.is-visible {
+      display: flex;
+    }
+
+    .results-title {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .result-count {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .result-list {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .result-card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .result-main {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .result-link {
+      color: var(--primary);
+      font-size: 17px;
+      font-weight: 800;
+      text-decoration: none;
+      line-height: 1.5;
+    }
+
+    .result-link:hover {
+      text-decoration: underline;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .badge.high {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .badge.middle {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge.low {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .open-link {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: #ffffff;
+      background: #111827;
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .open-link:hover {
+      background: #374151;
+    }
+
+    .paste-panel {
+      display: none;
+      margin-top: 24px;
+      padding: 18px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 14px;
+      background: #f8fafc;
+    }
+
+    .paste-panel.is-visible {
+      display: block;
+    }
+
+    .paste-panel h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .paste-panel p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      padding: 14px 16px;
+      resize: vertical;
+      font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        "Liberation Mono",
+        monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      outline: none;
+    }
+
+    .paste-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .hint {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 16px;
+      }
+
+      .header,
+      .content {
+        padding: 20px;
+      }
+
+      .form {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .result-main {
+        display: block;
+      }
+
+      .open-link {
+        display: inline-block;
+        margin-top: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <section class="app" aria-labelledby="app-title">
+      <div class="header">
+        <h1 id="app-title">法務系ページ自動検出ツール</h1>
+        <p class="description">
+          URLを1つ入力すると、利用規約・著作権・プライバシーポリシーなどが書かれていそうなページを探します。
+        </p>
+      </div>
+
+      <div class="content">
+        <form id="searchForm" class="form">
+          <div>
+            <label for="siteUrl">調べたいサイトのURL</label>
+            <input
+              id="siteUrl"
+              type="url"
+              placeholder="https://example.co.jp/"
+              autocomplete="url"
+              required
+            >
+          </div>
+
+          <button id="searchButton" type="submit">
+            検出する
+          </button>
+        </form>
+
+        <div class="status" aria-live="polite">
+          <div id="loading" class="loading">
+            <span class="spinner" aria-hidden="true"></span>
+            <span id="loadingText">ページを取得しています...</span>
+          </div>
+
+          <div id="message" class="message"></div>
+        </div>
+
+        <section class="results" aria-labelledby="results-title">
+          <div id="resultsHeader" class="results-header">
+            <h2 id="results-title" class="results-title">候補リンク</h2>
+            <span id="resultCount" class="result-count"></span>
+          </div>
+
+          <ul id="resultList" class="result-list"></ul>
+        </section>
+
+        <section id="pastePanel" class="paste-panel" aria-labelledby="paste-title">
+          <h2 id="paste-title">HTMLソース貼り付けで解析</h2>
+          <p>
+            自動取得がブロックされた可能性があります。
+            対象サイトをブラウザで開き、ページのHTMLソースをコピーして下に貼り付けると、
+            その中のリンクを解析できます。
+          </p>
+
+          <textarea
+            id="htmlSource"
+            placeholder="ここにHTMLソースを貼り付けてください"
+          ></textarea>
+
+          <div class="paste-actions">
+            <button id="analyzeSourceButton" type="button" class="sub-button">
+              貼り付けたHTMLを解析
+            </button>
+          </div>
+        </section>
+
+        <p class="hint">
+          判定は、リンク文字列とリンク先パスをもとにした簡易スコアリングです。
+          公式な確認には、必ずリンク先ページの内容を目視で確認してください。
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /*
+      ==============================
+      1. 設定値
+      ==============================
+
+      LEGAL_KEYWORDS:
+      リンクテキストやURLに含まれていたら「法務系ページらしい」と判断する語句です。
+      日本語サイトを主な対象にしているため、日本語キーワードを多めにしています。
+
+      COMMON_LEGAL_PATHS:
+      トップページにリンクが見つからない場合でも、
+      よくあるパスを推測してチェックします。
+    */
+
+    const LEGAL_KEYWORDS = [
+      {
+        type: "利用規約",
+        words: [
+          "利用規約",
+          "規約",
+          "ご利用条件",
+          "利用条件",
+          "サービス規約",
+          "terms",
+          "termsofservice",
+          "terms-of-service"
+        ]
+      },
+      {
+        type: "プライバシーポリシー",
+        words: [
+          "プライバシー",
+          "プライバシーポリシー",
+          "個人情報",
+          "個人情報保護方針",
+          "privacy",
+          "privacy-policy"
+        ]
+      },
+      {
+        type: "著作権",
+        words: [
+          "著作権",
+          "コピーライト",
+          "copyright",
+          "無断転載",
+          "転載禁止",
+          "複製禁止"
+        ]
+      },
+      {
+        type: "ライセンス",
+        words: [
+          "ライセンス",
+          "license",
+          "licence"
+        ]
+      },
+      {
+        type: "法的情報",
+        words: [
+          "法的情報",
+          "legal",
+          "免責事項",
+          "disclaimer",
+          "特定商取引法",
+          "特商法",
+          "表記"
+        ]
+      },
+      {
+        type: "サイトポリシー",
+        words: [
+          "サイトポリシー",
+          "sitepolicy",
+          "site-policy",
+          "ソーシャルメディアポリシー",
+          "cookie",
+          "クッキー"
+        ]
+      }
+    ];
+
+    const COMMON_LEGAL_PATHS = [
+      "/terms",
+      "/terms/",
+      "/terms-of-service",
+      "/terms-of-service/",
+      "/tos",
+      "/legal",
+      "/legal/",
+      "/privacy",
+      "/privacy/",
+      "/privacy-policy",
+      "/privacy-policy/",
+      "/policy",
+      "/site-policy",
+      "/copyright",
+      "/copyright/",
+      "/license",
+      "/license/",
+      "/disclaimer",
+      "/law",
+      "/tokushoho",
+      "/commercial-transactions",
+      "/利用規約",
+      "/著作権",
+      "/プライバシーポリシー",
+      "/特定商取引法"
+    ];
+
+    /*
+      AllOriginsの公開プロキシです。
+      ブラウザから外部サイトへ直接 fetch するとCORSで止まることが多いため、
+      プロキシを通してHTMLを取得します。
+    */
+    const PROXY_ENDPOINT = "https://api.allorigins.win/raw?url=";
+
+    /*
+      fetchが長時間終わらない場合に備え、タイムアウトを設定します。
+      MVPでは10秒程度が扱いやすいです。
+    */
+    const FETCH_TIMEOUT_MS = 10000;
+
+    /*
+      ==============================
+      2. DOM要素の取得
+      ==============================
+    */
+
+    const searchForm = document.getElementById("searchForm");
+    const siteUrlInput = document.getElementById("siteUrl");
+    const searchButton = document.getElementById("searchButton");
+    const loading = document.getElementById("loading");
+    const loadingText = document.getElementById("loadingText");
+    const message = document.getElementById("message");
+    const resultsHeader = document.getElementById("resultsHeader");
+    const resultCount = document.getElementById("resultCount");
+    const resultList = document.getElementById("resultList");
+    const pastePanel = document.getElementById("pastePanel");
+    const htmlSource = document.getElementById("htmlSource");
+    const analyzeSourceButton = document.getElementById("analyzeSourceButton");
+
+    /*
+      直近で入力されたURLを保持します。
+      HTMLソース貼り付け解析では、相対リンクを絶対リンクに変換するため、
+      元サイトのURLが必要になります。
+    */
+    let currentBaseUrl = "";
+
+    /*
+      ==============================
+      3. イベント設定
+      ==============================
+    */
+
+    searchForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      const inputUrl = siteUrlInput.value.trim();
+      const normalizedUrl = normalizeUrl(inputUrl);
+
+      if (!normalizedUrl) {
+        showMessage("URLの形式を確認してください。", "error");
+        return;
+      }
+
+      currentBaseUrl = normalizedUrl;
+
+      clearResults();
+      hidePastePanel();
+      setLoading(true, "トップページを取得しています...");
+
+      try {
+        const html = await fetchHtmlViaProxy(normalizedUrl);
+
+        if (looksBlocked(html)) {
+          throw new Error("BLOCKED_OR_CAPTCHA");
+        }
+
+        setLoading(true, "ページ内リンクを解析しています...");
+
+        /*
+          トップページ内のリンクから候補を抽出します。
+          フッターだけに限定するとサイト構造により取りこぼすため、
+          MVPではページ内の全aタグを対象にしています。
+        */
+        const linkCandidates = extractLegalLinksFromHtml(html, normalizedUrl);
+
+        setLoading(true, "よくある法務系ページのパスを確認しています...");
+
+        /*
+          よくあるパスも推測して確認します。
+          ただし、公開プロキシを使うため、候補数は増やしすぎない方が安定します。
+        */
+        const pathCandidates = await checkCommonLegalPaths(normalizedUrl);
+
+        const mergedResults = mergeAndSortResults([
+          ...linkCandidates,
+          ...pathCandidates
+        ]);
+
+        setLoading(false);
+        renderResults(mergedResults);
+
+        if (mergedResults.length === 0) {
+          showMessage(
+            "候補が見つかりませんでした。必要であれば、HTMLソース貼り付けでも解析できます。",
+            "warning"
+          );
+          showPastePanel();
+        } else {
+          showMessage(
+            "候補を関連度が高い順に表示しました。",
+            "success"
+          );
+        }
+      } catch (error) {
+        console.error(error);
+
+        setLoading(false);
+        showMessage(
+          "自動取得に失敗しました。対象サイトまたはセキュリティシステムにより、自動アクセスがブロックされた可能性があります。対象ページをブラウザで開き、右クリック →「ページのソースを表示」（または Ctrl/Cmd + U）で表示されたコードをすべてコピーして、下の枠に貼り付けてください。HTMLソースから解析します。",
+          "warning"
+        );
+        showPastePanel();
+      }
+    });
+
+    analyzeSourceButton.addEventListener("click", function () {
+      const source = htmlSource.value.trim();
+
+      if (!currentBaseUrl) {
+        const normalizedUrl = normalizeUrl(siteUrlInput.value.trim());
+
+        if (!normalizedUrl) {
+          showMessage("先に対象サイトのURLを入力してください。", "error");
+          return;
+        }
+
+        currentBaseUrl = normalizedUrl;
+      }
+
+      if (!source) {
+        showMessage("HTMLソースを貼り付けてください。", "error");
+        return;
+      }
+
+      clearResults();
+
+      const candidates = extractLegalLinksFromHtml(source, currentBaseUrl);
+      const mergedResults = mergeAndSortResults(candidates);
+
+      renderResults(mergedResults);
+
+      if (mergedResults.length === 0) {
+        showMessage("貼り付けられたHTMLから候補は見つかりませんでした。", "warning");
+      } else {
+        showMessage("貼り付けられたHTMLから候補を抽出しました。", "success");
+      }
+    });
+
+    /*
+      ==============================
+      4. URL処理
+      ==============================
+    */
+
+    function normalizeUrl(input) {
+      /*
+        非エンジニア向け補足:
+        new URL() は、文字列がURLとして正しいかを確認しつつ、
+        URLを扱いやすいオブジェクトに変換してくれます。
+      */
+
+      if (!input) {
+        return "";
+      }
+
+      let value = input;
+
+      /*
+        example.com のように http が付いていない入力でも使えるようにします。
+      */
+      if (!/^https?:\/\//i.test(value)) {
+        value = "https://" + value;
+      }
+
+      try {
+        const url = new URL(value);
+
+        /*
+          hash は #section のようなページ内位置指定です。
+          今回の解析には不要なので削除します。
+        */
+        url.hash = "";
+
+        return url.href;
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function getOrigin(url) {
+      const parsedUrl = new URL(url);
+      return parsedUrl.origin;
+    }
+
+    function toAbsoluteUrl(href, baseUrl) {
+      /*
+        <a href="/terms"> のような相対リンクを、
+        絶対URLとして扱える形に変換します。
+      */
+      try {
+        const url = new URL(href, baseUrl);
+
+        /*
+          mailto: や tel: はWebページではないので除外します。
+        */
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+          return "";
+        }
+
+        url.hash = "";
+
+        return url.href;
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function isSameSite(url, baseUrl) {
+      /*
+        基本的には同一ドメイン内の法務ページを探します。
+        ただし、完全に別ドメインに規約ページを置くサイトもあります。
+        MVPでは誤検出を減らすため同一ドメインを優先します。
+      */
+      try {
+        return new URL(url).hostname === new URL(baseUrl).hostname;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    /*
+      ==============================
+      5. HTML取得
+      ==============================
+    */
+
+    async function fetchHtmlViaProxy(targetUrl) {
+      const proxiedUrl = PROXY_ENDPOINT + encodeURIComponent(targetUrl);
+
+      const controller = new AbortController();
+      const timerId = setTimeout(function () {
+        controller.abort();
+      }, FETCH_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(proxiedUrl, {
+          method: "GET",
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          throw new Error("FETCH_FAILED");
+        }
+
+        const text = await response.text();
+
+        if (!text || text.length < 20) {
+          throw new Error("EMPTY_RESPONSE");
+        }
+
+        return text;
+      } finally {
+        clearTimeout(timerId);
+      }
+    }
+
+    function looksBlocked(html) {
+      /*
+        bot対策・WAF・Cloudflare・CAPTCHAなどでブロックされたページを
+        ざっくり検出します。
+        完全ではありませんが、MVPでは十分実用的です。
+      */
+
+      const normalized = html.toLowerCase();
+
+      const blockedWords = [
+        "captcha",
+        "cloudflare",
+        "access denied",
+        "forbidden",
+        "bot detection",
+        "enable javascript",
+        "checking your browser",
+        "セキュリティ保護",
+        "アクセスが拒否",
+        "アクセス拒否",
+        "不正なアクセス"
+      ];
+
+      return blockedWords.some(function (word) {
+        return normalized.includes(word.toLowerCase());
+      });
+    }
+
+    /*
+      ==============================
+      6. リンク抽出とスコアリング
+      ==============================
+    */
+
+    function extractLegalLinksFromHtml(html, baseUrl) {
+      const parser = new DOMParser();
+      const documentObject = parser.parseFromString(html, "text/html");
+      const anchors = Array.from(documentObject.querySelectorAll("a"));
+
+      const results = [];
+
+      anchors.forEach(function (anchor) {
+        const href = anchor.getAttribute("href");
+
+        if (!href) {
+          return;
+        }
+
+        const absoluteUrl = toAbsoluteUrl(href, baseUrl);
+
+        if (!absoluteUrl) {
+          return;
+        }
+
+        /*
+          外部サイトのリンクは誤検出が増えやすいため、MVPでは除外します。
+          例外的に外部ドメインに規約を置くサイトもありますが、
+          まずは精度を優先します。
+        */
+        if (!isSameSite(absoluteUrl, baseUrl)) {
+          return;
+        }
+
+        const text = cleanText(anchor.textContent);
+        const ariaLabel = cleanText(anchor.getAttribute("aria-label") || "");
+        const title = cleanText(anchor.getAttribute("title") || "");
+
+        const labelText = [text, ariaLabel, title].filter(Boolean).join(" ");
+        const scoreInfo = scoreLegalCandidate({
+          labelText: labelText,
+          url: absoluteUrl,
+          source: "page-link"
+        });
+
+        if (scoreInfo.score <= 0) {
+          return;
+        }
+
+        results.push({
+          url: absoluteUrl,
+          label: createDisplayLabel(labelText, absoluteUrl, scoreInfo.types),
+          score: scoreInfo.score,
+          types: scoreInfo.types,
+          source: "ページ内リンク"
+        });
+      });
+
+      return results;
+    }
+
+    function scoreLegalCandidate(candidate) {
+      const labelText = normalizeForMatch(candidate.labelText || "");
+      const urlObject = new URL(candidate.url);
+      const pathText = normalizeForMatch(decodeURIComponent(urlObject.pathname));
+      const fullUrlText = normalizeForMatch(decodeURIComponent(urlObject.href));
+
+      let score = 0;
+      const matchedTypes = new Set();
+
+      LEGAL_KEYWORDS.forEach(function (keywordGroup) {
+        keywordGroup.words.forEach(function (word) {
+          const normalizedWord = normalizeForMatch(word);
+
+          /*
+            リンクテキストにキーワードが含まれる場合はかなり強い証拠です。
+            例:
+            <a href="/terms">利用規約</a>
+          */
+          if (labelText.includes(normalizedWord)) {
+            score += 30;
+            matchedTypes.add(keywordGroup.type);
+          }
+
+          /*
+            URLのパスにキーワードが含まれる場合も候補にします。
+            例:
+            /privacy-policy
+          */
+          if (pathText.includes(normalizedWord)) {
+            score += 16;
+            matchedTypes.add(keywordGroup.type);
+          }
+
+          /*
+            フルURLも見ますが、ドメイン名などで偶然一致する可能性があるため、
+            パスより少し弱い扱いにします。
+          */
+          if (fullUrlText.includes(normalizedWord)) {
+            score += 6;
+            matchedTypes.add(keywordGroup.type);
+          }
+        });
+      });
+
+      /*
+        「footer」「policy」など、法務系リンクにありがちな補助語も軽く加点します。
+      */
+      const helperWords = [
+        "footer",
+        "policy",
+        "rule",
+        "about",
+        "info"
+      ];
+
+      helperWords.forEach(function (word) {
+        if (fullUrlText.includes(word)) {
+          score += 2;
+        }
+      });
+
+      /*
+        よくある推測パスで存在確認できたものは、
+        ページ内リンクほどではないが中程度に評価します。
+      */
+      if (candidate.source === "guessed-path") {
+        score += 18;
+      }
+
+      return {
+        score: score,
+        types: Array.from(matchedTypes)
+      };
+    }
+
+    function normalizeForMatch(value) {
+      /*
+        大文字小文字、空白、記号の違いを吸収して比較しやすくします。
+      */
+
+      return String(value)
+        .toLowerCase()
+        .replace(/\s+/g, "")
+        .replace(/[＿_‐‑‒–—―\-]/g, "")
+        .trim();
+    }
+
+    function cleanText(value) {
+      return String(value || "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function createDisplayLabel(labelText, url, types) {
+      /*
+        画面にはURLをそのまま表示せず、リンク名だけを表示します。
+        リンクテキストが空の場合は、判定タイプを表示名にします。
+      */
+
+      const cleanedLabel = cleanText(labelText);
+
+      if (cleanedLabel) {
+        return cleanedLabel;
+      }
+
+      if (types.length > 0) {
+        return types.join("・");
+      }
+
+      const pathname = decodeURIComponent(new URL(url).pathname);
+      const lastPart = pathname.split("/").filter(Boolean).pop();
+
+      return lastPart || "候補ページ";
+    }
+
+    /*
+      ==============================
+      7. よくあるパスのチェック
+      ==============================
+    */
+
+    async function checkCommonLegalPaths(baseUrl) {
+      const origin = getOrigin(baseUrl);
+
+      /*
+        同じURLを何度も調べないようにSetで重複排除します。
+      */
+      const candidateUrls = Array.from(
+        new Set(
+          COMMON_LEGAL_PATHS.map(function (path) {
+            return new URL(path, origin).href;
+          })
+        )
+      );
+
+      const results = [];
+
+      /*
+        一度に大量アクセスすると公開プロキシにも対象サイトにも負荷がかかるため、
+        ここでは順番にチェックします。
+        MVPとしては少し遅いですが、安全寄りです。
+      */
+      for (const candidateUrl of candidateUrls) {
+        try {
+          const html = await fetchHtmlViaProxy(candidateUrl);
+
+          if (!html || looksBlocked(html) || looksLikeNotFoundPage(html)) {
+            continue;
+          }
+
+          const scoreInfo = scoreLegalCandidate({
+            labelText: extractTitleFromHtml(html),
+            url: candidateUrl,
+            source: "guessed-path"
+          });
+
+          if (scoreInfo.score <= 0) {
+            continue;
+          }
+
+          results.push({
+            url: candidateUrl,
+            label: createDisplayLabel(
+              extractTitleFromHtml(html),
+              candidateUrl,
+              scoreInfo.types
+            ),
+            score: scoreInfo.score,
+            types: scoreInfo.types,
+            source: "推測パス"
+          });
+        } catch (error) {
+          /*
+            候補パスの失敗はよくあるため、全体のエラーにはしません。
+          */
+          continue;
+        }
+      }
+
+      return results;
+    }
+
+    function extractTitleFromHtml(html) {
+      const parser = new DOMParser();
+      const documentObject = parser.parseFromString(html, "text/html");
+      const title = documentObject.querySelector("title");
+
+      return cleanText(title ? title.textContent : "");
+    }
+
+    function looksLikeNotFoundPage(html) {
+      /*
+        公開プロキシ経由ではHTTPステータスが分かりにくいことがあるため、
+        404らしい本文やtitleを見て除外します。
+      */
+
+      const normalized = normalizeForMatch(html.slice(0, 5000));
+
+      const notFoundWords = [
+        "404",
+        "notfound",
+        "ページが見つかりません",
+        "お探しのページは見つかりません",
+        "存在しません",
+        "指定されたページ"
+      ];
+
+      return notFoundWords.some(function (word) {
+        return normalized.includes(normalizeForMatch(word));
+      });
+    }
+
+    /*
+      ==============================
+      8. 結果の統合・並び替え
+      ==============================
+    */
+
+    function mergeAndSortResults(results) {
+      const map = new Map();
+
+      results.forEach(function (item) {
+        const key = normalizeResultUrl(item.url);
+
+        if (!map.has(key)) {
+          map.set(key, item);
+          return;
+        }
+
+        /*
+          同じURLが複数経路で見つかった場合は、スコアが高い方を残します。
+        */
+        const existing = map.get(key);
+
+        if (item.score > existing.score) {
+          map.set(key, item);
+        } else {
+          const mergedTypes = Array.from(
+            new Set([
+              ...existing.types,
+              ...item.types
+            ])
+          );
+
+          existing.types = mergedTypes;
+          existing.score = Math.max(existing.score, item.score);
+        }
+      });
+
+      return Array.from(map.values()).sort(function (a, b) {
+        return b.score - a.score;
+      });
+    }
+
+    function normalizeResultUrl(url) {
+      const parsedUrl = new URL(url);
+      parsedUrl.hash = "";
+
+      /*
+        末尾スラッシュの違いだけで重複しないように調整します。
+      */
+      let value = parsedUrl.href;
+
+      if (value.endsWith("/")) {
+        value = value.slice(0, -1);
+      }
+
+      return value;
+    }
+
+    function getPriority(score) {
+      if (score >= 45) {
+        return {
+          label: "優先度：高",
+          className: "high"
+        };
+      }
+
+      if (score >= 24) {
+        return {
+          label: "優先度：中",
+          className: "middle"
+        };
+      }
+
+      return {
+        label: "優先度：低",
+        className: "low"
+      };
+    }
+
+    /*
+      ==============================
+      9. 画面表示
+      ==============================
+    */
+
+    function renderResults(results) {
+      resultList.innerHTML = "";
+
+      if (results.length === 0) {
+        resultsHeader.classList.remove("is-visible");
+        resultCount.textContent = "";
+        return;
+      }
+
+      resultsHeader.classList.add("is-visible");
+      resultCount.textContent = results.length + "件";
+
+      results.forEach(function (result) {
+        const priority = getPriority(result.score);
+
+        const li = document.createElement("li");
+        li.className = "result-card";
+
+        const main = document.createElement("div");
+        main.className = "result-main";
+
+        const left = document.createElement("div");
+
+        const link = document.createElement("a");
+        link.className = "result-link";
+        link.href = result.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = result.label;
+
+        const openLink = document.createElement("a");
+        openLink.className = "open-link";
+        openLink.href = result.url;
+        openLink.target = "_blank";
+        openLink.rel = "noopener noreferrer";
+        openLink.textContent = "別タブで開く";
+
+        const badges = document.createElement("div");
+        badges.className = "badges";
+
+        const priorityBadge = document.createElement("span");
+        priorityBadge.className = "badge " + priority.className;
+        priorityBadge.textContent = priority.label;
+        badges.appendChild(priorityBadge);
+
+        const sourceBadge = document.createElement("span");
+        sourceBadge.className = "badge";
+        sourceBadge.textContent = result.source;
+        badges.appendChild(sourceBadge);
+
+        result.types.forEach(function (type) {
+          const typeBadge = document.createElement("span");
+          typeBadge.className = "badge";
+          typeBadge.textContent = type;
+          badges.appendChild(typeBadge);
+        });
+
+        left.appendChild(link);
+        left.appendChild(badges);
+
+        main.appendChild(left);
+        main.appendChild(openLink);
+
+        li.appendChild(main);
+        resultList.appendChild(li);
+      });
+    }
+
+    function clearResults() {
+      resultList.innerHTML = "";
+      resultsHeader.classList.remove("is-visible");
+      resultCount.textContent = "";
+      hideMessage();
+    }
+
+    function setLoading(isLoading, text) {
+      if (isLoading) {
+        loading.classList.add("is-visible");
+        loadingText.textContent = text || "処理中です...";
+        searchButton.disabled = true;
+        analyzeSourceButton.disabled = true;
+      } else {
+        loading.classList.remove("is-visible");
+        searchButton.disabled = false;
+        analyzeSourceButton.disabled = false;
+      }
+    }
+
+    function showMessage(text, type) {
+      message.textContent = text;
+      message.className = "message is-visible " + type;
+    }
+
+    function hideMessage() {
+      message.textContent = "";
+      message.className = "message";
+    }
+
+    function showPastePanel() {
+      pastePanel.classList.add("is-visible");
+    }
+
+    function hidePastePanel() {
+      pastePanel.classList.remove("is-visible");
+    }
+  </script>
+</body>
+</html>
